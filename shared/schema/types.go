@@ -1,6 +1,9 @@
 package schema
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // RawIssue is the unprocessed event published to the raw-issues Kafka topic by the ingestion service.
 type RawIssue struct {
@@ -32,4 +35,12 @@ type EventEnvelope struct {
 	Source     string    `json:"source"`
 	OccurredAt time.Time `json:"occurred_at"`
 	Payload    any       `json:"payload"`
+}
+
+// DLQEnvelope wraps an unprocessable Kafka message for the dead-letter topic.
+// OriginalPayload is stored as raw JSON so it can be read without an extra decode step.
+type DLQEnvelope struct {
+	Reason          string          `json:"reason"`
+	OriginalPayload json.RawMessage `json:"original_payload"`
+	FailedAt        time.Time       `json:"failed_at"`
 }

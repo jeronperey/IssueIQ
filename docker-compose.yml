@@ -66,6 +66,23 @@ services:
     networks:
       - issueiq-net
 
+  kafka-init:
+    image: apache/kafka:3.7.0
+    container_name: issueiq-kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command: |
+      "
+      /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic raw-issues --partitions 1 --replication-factor 1
+      /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic normalized-issues --partitions 1 --replication-factor 1
+      /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic dead-letter --partitions 1 --replication-factor 1
+      echo 'topics ready'
+      "
+    networks:
+      - issueiq-net
+
   ingestion:
     build:
       context: .
