@@ -66,6 +66,22 @@ services:
     networks:
       - issueiq-net
 
+  ingestion:
+    build:
+      context: .
+      dockerfile: services/ingestion/Dockerfile
+    container_name: issueiq-ingestion
+    ports:
+      - "8080:8080"
+    environment:
+      - KAFKA_ADDR=kafka:29092
+      - KAFKA_TOPIC=raw-issues
+    depends_on:
+      kafka:
+        condition: service_healthy
+    networks:
+      - issueiq-net
+
 networks:
   issueiq-net:
     driver: bridge
