@@ -179,3 +179,15 @@ Building this forced me to understand things I would have just read about otherw
 - **DLQ observability:** Dead-letter messages are written but never alerted on. In production you'd want a consumer that monitors DLQ lag and pages someone.
 - **Sorting:** Search results come back in relevance order, filter results in index order. Explicit `sort` on `updated_at` descending would make the API more useful.
 - **The normalizer's status fallback:** Unknown statuses default to `"open"`, which is a business assumption baked silently into the code. That should be configurable or at least logged clearly.
+
+---
+
+## Future Implementations
+
+**Agentic enrichment pipeline**
+
+Add an `enricher` service as a new stage between the normalizer and indexer. It consumes from `normalized-issues`, calls an LLM to classify each issue — inferring affected component, likely root cause category, and suggested owner team — then publishes to a new `enriched-issues` topic that the indexer reads from instead. The architecture doesn't change; it's just a new consumer in the chain. New fields like `component`, `root_cause_category`, and `suggested_owner` get indexed alongside the existing ones and become filterable and aggregatable through the query API. This is the natural next step for the pipeline: the normalization stage makes data consistent, the enrichment stage makes it *intelligent*.
+
+**Natural language query interface**
+
+Add a `POST /issues/ask` endpoint to the query service that accepts a plain English question (`"show me all critical auth bugs from the last week"`), sends it to an LLM with the index field schema as context, receives back a valid OpenSearch DSL query, executes it, and returns results. No new infrastructure required — it's a thin LLM-backed layer on top of the existing OpenSearch client. The interesting constraint is prompt design: the LLM needs to know which fields are `keyword` vs `text` (affects whether to use `term` or `match`), which fields are `date` (enables range queries), and that aggregations require `keyword` fields. Getting that context into the prompt reliably is the engineering problem, not the query execution itself.
