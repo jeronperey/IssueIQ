@@ -13,8 +13,9 @@ type KafkaProducer struct {
 func NewKafkaProducer(addr string) *KafkaProducer {
 	return &KafkaProducer{
 		writer: &kafka.Writer{
-			Addr:     kafka.TCP(addr),
-			Balancer: &kafka.LeastBytes{},
+			Addr:         kafka.TCP(addr),
+			Balancer:     &kafka.LeastBytes{},
+			RequiredAcks: kafka.RequireOne,
 		},
 	}
 }

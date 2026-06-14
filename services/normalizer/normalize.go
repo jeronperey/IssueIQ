@@ -47,7 +47,7 @@ var priorityMap = map[string]string{
 func NormalizeIssue(raw schema.RawIssue) (schema.NormalizedIssue, error) {
 	title := strings.TrimSpace(getString(raw.RawPayload, "title"))
 	if title == "" {
-		return schema.NormalizedIssue{}, fmt.Errorf("normalize: title is missing or empty")
+		return schema.NormalizedIssue{}, fmt.Errorf("title is missing or empty")
 	}
 
 	updatedAt := time.Now().UTC()
