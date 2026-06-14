@@ -22,10 +22,20 @@ func NewDLQPublisher(producer *KafkaProducer, topic string) *DLQPublisher {
 // Publish wraps the original Kafka message in a DLQEnvelope and sends it to
 // the dead-letter topic. The original message key is preserved so the failed
 // event can be traced back to its source issue.
+// If the original bytes are not valid JSON, they are encoded as a JSON string
+// so the DLQEnvelope itself always marshals successfully.
 func (d *DLQPublisher) Publish(ctx context.Context, originalMsg kafka.Message, reason string) error {
+	var payload json.RawMessage
+	if json.Valid(originalMsg.Value) {
+		payload = json.RawMessage(originalMsg.Value)
+	} else {
+		encoded, _ := json.Marshal(string(originalMsg.Value))
+		payload = json.RawMessage(encoded)
+	}
+
 	envelope := schema.DLQEnvelope{
 		Reason:          reason,
-		OriginalPayload: json.RawMessage(originalMsg.Value),
+		OriginalPayload: payload,
 		FailedAt:        time.Now().UTC(),
 	}
 

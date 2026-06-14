@@ -59,6 +59,8 @@ func TestNormalizeIssue_StatusVariants(t *testing.T) {
 		{"closed", "closed"},
 		{"IN_PROGRESS", "in_progress"},
 		{"in-progress", "in_progress"},
+		{"In Progress", "in_progress"},
+		{"in progress", "in_progress"},
 		{"unknown", "open"},
 		{"", "open"},
 	}
@@ -128,6 +130,15 @@ func TestNormalizeIssue_MissingTitle(t *testing.T) {
 	}))
 	if err == nil {
 		t.Error("expected error for missing title, got nil")
+	}
+}
+
+func TestNormalizeIssue_WhitespaceTitle(t *testing.T) {
+	_, err := NormalizeIssue(rawIssue(map[string]any{
+		"title": "   ",
+	}))
+	if err == nil {
+		t.Error("expected error for whitespace-only title, got nil")
 	}
 }
 

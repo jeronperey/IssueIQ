@@ -1,0 +1,7 @@
+# compiled binaries (built in repo root during local testing)
+/indexer
+/ingestion
+/normalizer
+
+# macOS
+.DS_Store

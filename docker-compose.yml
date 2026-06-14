@@ -99,6 +99,43 @@ services:
     networks:
       - issueiq-net
 
+  normalizer:
+    build:
+      context: .
+      dockerfile: services/normalizer/Dockerfile
+    container_name: issueiq-normalizer
+    environment:
+      - KAFKA_BROKERS=kafka:29092
+      - RAW_ISSUES_TOPIC=raw-issues
+      - NORMALIZED_ISSUES_TOPIC=normalized-issues
+      - DLQ_TOPIC=dead-letter
+      - CONSUMER_GROUP=normalizer-group
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+    networks:
+      - issueiq-net
+
+  indexer:
+    build:
+      context: .
+      dockerfile: services/indexer/Dockerfile
+    container_name: issueiq-indexer
+    environment:
+      - KAFKA_BROKERS=kafka:29092
+      - NORMALIZED_ISSUES_TOPIC=normalized-issues
+      - DLQ_TOPIC=dead-letter
+      - CONSUMER_GROUP=indexer-group
+      - OPENSEARCH_URL=http://opensearch:9200
+      - OPENSEARCH_INDEX=issues
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+      opensearch:
+        condition: service_healthy
+    networks:
+      - issueiq-net
+
 networks:
   issueiq-net:
     driver: bridge

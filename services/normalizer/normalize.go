@@ -11,34 +11,41 @@ import (
 	"github.com/jeronperey/issueiq/shared/schema"
 )
 
+// canonicalKey lowercases, trims, and collapses spaces/hyphens to underscores
+// so that "In Progress", "in-progress", "IN_PROGRESS" all map to "in_progress".
+func canonicalKey(s string) string {
+	s = strings.ToLower(strings.TrimSpace(s))
+	s = strings.ReplaceAll(s, " ", "_")
+	s = strings.ReplaceAll(s, "-", "_")
+	return s
+}
+
+// Keys are pre-canonicalized; normalizeStatus/normalizePriority apply canonicalKey
+// before lookup so case and separator variants are handled automatically.
 var statusMap = map[string]string{
-	"OPEN":        "open",
-	"Open":        "open",
 	"open":        "open",
 	"new":         "open",
-	"CLOSED":      "closed",
+	"pending":     "open",
 	"closed":      "closed",
-	"IN_PROGRESS": "in_progress",
-	"in-progress": "in_progress",
 	"in_progress": "in_progress",
 }
 
 var priorityMap = map[string]string{
-	"P0":      "critical",
+	"p0":      "critical",
 	"urgent":  "critical",
 	"blocker": "critical",
-	"P1":      "high",
+	"p1":      "high",
 	"high":    "high",
-	"P2":      "medium",
+	"p2":      "medium",
 	"medium":  "medium",
-	"P3":      "low",
+	"p3":      "low",
 	"low":     "low",
 }
 
 // NormalizeIssue converts a RawIssue into a canonical NormalizedIssue.
-// It is a pure function: no I/O, no side effects.
+// No I/O or external calls; timestamps default to time.Now() when absent from payload.
 func NormalizeIssue(raw schema.RawIssue) (schema.NormalizedIssue, error) {
-	title := getString(raw.RawPayload, "title")
+	title := strings.TrimSpace(getString(raw.RawPayload, "title"))
 	if title == "" {
 		return schema.NormalizedIssue{}, fmt.Errorf("normalize: title is missing or empty")
 	}
@@ -68,14 +75,14 @@ func NormalizeIssue(raw schema.RawIssue) (schema.NormalizedIssue, error) {
 }
 
 func normalizeStatus(raw string) string {
-	if canonical, ok := statusMap[raw]; ok {
+	if canonical, ok := statusMap[canonicalKey(raw)]; ok {
 		return canonical
 	}
 	return "open"
 }
 
 func normalizePriority(raw string) string {
-	if canonical, ok := priorityMap[raw]; ok {
+	if canonical, ok := priorityMap[canonicalKey(raw)]; ok {
 		return canonical
 	}
 	return "medium"
