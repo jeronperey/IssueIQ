@@ -172,6 +172,8 @@ Building this forced me to understand things I would have just read about otherw
 
 **What I'd improve:**
 
+- **Producer acknowledgment:** I ran an automated test suite after completing the project and it caught that all three Kafka writers were configured with the default `RequiredAcks=0` (fire-and-forget). Under a broker outage the ingestion service was returning 202 even though messages weren't confirmed. Fixed to `RequireOne` so publish failures surface as errors. `RequireOne` means the partition leader acks — with `RequireAll` you'd also wait for in-sync replicas, which only matters with replication. Locally there are no replicas, so `RequireOne` is the right call here; `RequireAll` would be the production choice.
+- **Consumer restart on broker loss:** When Kafka stopped during testing, the normalizer container exited on the fetch error instead of retrying. A production consumer should loop with backoff rather than crashing. The fix is a retry loop around `FetchMessage` rather than returning the error to the caller.
 - **Pagination:** The query service hardcodes `size: 20`. A real API needs `from`/`size` or cursor-based pagination for large datasets.
 - **Auth:** The query API is completely open. Even basic API key middleware would make this more production-realistic.
 - **DLQ observability:** Dead-letter messages are written but never alerted on. In production you'd want a consumer that monitors DLQ lag and pages someone.
