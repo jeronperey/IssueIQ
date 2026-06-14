@@ -1,4 +1,4 @@
-.PHONY: up down logs logs-ingestion logs-normalizer logs-indexer reset seed test replay-dlq
+.PHONY: up down logs logs-ingestion logs-normalizer logs-indexer logs-query reset seed test replay-dlq
 
 # Start all services in detached mode
 up:
@@ -21,6 +21,9 @@ logs-normalizer:
 
 logs-indexer:
 	docker compose logs -f indexer
+
+logs-query:
+	docker compose logs -f query
 
 # Full reset: destroy volumes and restart from scratch
 reset:

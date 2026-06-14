@@ -52,6 +52,13 @@ services:
     networks:
       - issueiq-net
 
+
+
+
+
+
+
+
   opensearch-dashboards:
     image: opensearchproject/opensearch-dashboards:2
     container_name: issueiq-opensearch-dashboards
@@ -131,6 +138,22 @@ services:
     depends_on:
       kafka-init:
         condition: service_completed_successfully
+      opensearch:
+        condition: service_healthy
+    networks:
+      - issueiq-net
+
+  query:
+    build:
+      context: .
+      dockerfile: services/query/Dockerfile
+    container_name: issueiq-query
+    ports:
+      - "8082:8082"
+    environment:
+      - OPENSEARCH_URL=http://opensearch:9200
+      - OPENSEARCH_INDEX=issues
+    depends_on:
       opensearch:
         condition: service_healthy
     networks:

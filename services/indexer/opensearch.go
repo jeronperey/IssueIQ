@@ -25,6 +25,10 @@ func NewOpenSearchClient(url, index string) *OpenSearchClient {
 	}
 }
 
+// indexMapping defines the settings and mappings for the OpenSearch index.
+// We set number_of_replicas to 0 for simplicity, but in a production environment,
+// you would likely want to configure this based on your needs.
+// The mappings define the data types for each field, which helps OpenSearch optimize storage and search performance.
 var indexMapping = map[string]any{
 	"settings": map[string]any{
 		"number_of_replicas": 0,
@@ -39,7 +43,7 @@ var indexMapping = map[string]any{
 			"status":         map[string]string{"type": "keyword"},
 			"priority":       map[string]string{"type": "keyword"},
 			"tags":           map[string]string{"type": "keyword"},
-			"created_at":     map[string]string{"type": "date"},
+			"created_at":     map[string]string{"type": "date"}, // For sorting and filtering, we want to use the date type. For display, we can format it as needed.
 			"updated_at":     map[string]string{"type": "date"},
 		},
 	},

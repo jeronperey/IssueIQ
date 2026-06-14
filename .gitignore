@@ -2,6 +2,7 @@
 /indexer
 /ingestion
 /normalizer
+/query
 
 # macOS
 .DS_Store
