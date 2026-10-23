@@ -44,6 +44,20 @@ I did not isolate it further; a real scaling claim past 4 needs the load generat
 probe events (one per 200 ms, 300 / 225 samples) that are sent through the real path and polled via `_search`; it includes
 OpenSearch's 1 s `refresh_interval`, which dominates it. A p99 of ~1.3 s "ingest-to-searchable" is therefore mostly the refresh setting.
 
+### Grafana dashboard under load
+
+Dashboard `IssueIQ pipeline` (provisioned from `observability/`), showing a 150 s run through the HTTP ingestion service at ~7.3k events/s,
+4 partitions, 4 normalizers, 4 indexers (all 1.09M events indexed, 0 missing). Per-instance panels show the four consumers sharing load evenly;
+the DLQ / retry panel is flat because nothing failed.
+
+![Throughput, lag, latency](images/grafana-top.jpg)
+![Retries, HTTP outcomes, per-instance throughput](images/grafana-bottom.jpg)
+
+Caveat: this run is noticeably slower on latency than the table above. Prometheus (scraping 25 targets every 5 s), Grafana and a browser were
+running on the same laptop, and the whole-run p99 ingest-to-indexed was 1.25 s (p99 send-to-searchable 2.6 s), with spikes to ~2.4 s visible in the panel,
+versus 141 ms for the same rate in the table. The table numbers are best case, measured with only the pipeline, Kafka and OpenSearch running; on a
+shared machine the tail moves a lot, which is also why I would not read the 8-partition regression in section 1 as a pipeline limit.
+
 ## 3. Fault injection
 
 Harness: `tools/chaos`. Each run starts 1 ingestion + 2 normalizers + 2 indexers on a 4-partition topic, sends 30,000 events

@@ -1,5 +1,7 @@
 # IssueIQ
 
+[![ci](https://github.com/jeronperey/IssueIQ/actions/workflows/ci.yml/badge.svg)](https://github.com/jeronperey/IssueIQ/actions/workflows/ci.yml)
+
 IssueIQ is an event-driven issue-tracking pipeline built to learn the CrowdStrike stack before my internship. It ingests raw issues from multiple sources, normalizes them through Kafka, indexes them in OpenSearch, and exposes a query API for search, filtering, and aggregation.
 
 ---
@@ -9,7 +11,7 @@ IssueIQ is an event-driven issue-tracking pipeline built to learn the CrowdStrik
 On a single M4 laptop (everything co-located, see [docs/BENCHMARKS.md](docs/BENCHMARKS.md)):
 
 - **33k events/sec** sustained through Kafka -> normalizer -> Kafka -> indexer -> OpenSearch with 4 partitions / 4+4 consumers (12k on 1 partition; the original unbatched code did ~1/sec).
-- **p99 ingest-to-indexed 251 ms, p99 send-to-searchable 1.3 s** at 17.8k events/sec (the 1 s OpenSearch refresh interval dominates the latter).
+- **p99 ingest-to-indexed 251 ms, p99 send-to-searchable 1.3 s** at 17.8k events/sec (the 1 s OpenSearch refresh interval dominates the latter). Best case: with Prometheus, Grafana and a browser running on the same laptop the tail was several times worse, see [the dashboard run](docs/BENCHMARKS.md#grafana-dashboard-under-load).
 - **0 lost, 0 duplicate documents across 30 fault-injection runs (775k acknowledged events)**: SIGKILLs, Kafka and OpenSearch restarts, malformed input, DLQ replay.
 
 ```bash
