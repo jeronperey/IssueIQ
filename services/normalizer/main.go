@@ -6,7 +6,10 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
+	"github.com/jeronperey/issueiq/shared/kafkautil"
+	"github.com/jeronperey/issueiq/shared/metrics"
 	"github.com/segmentio/kafka-go"
 )
 
@@ -28,6 +31,10 @@ func main() {
 		Brokers: []string{kafkaAddr},
 		Topic:   srcTopic,
 		GroupID: group,
+		// Big enough to let a batch fill from the fetch buffer instead of one round trip per message.
+		MinBytes: 1,
+		MaxBytes: 10 << 20,
+		MaxWait:  50 * time.Millisecond,
 	})
 	defer reader.Close()
 
@@ -38,6 +45,9 @@ func main() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	metrics.Serve(getenv("METRICS_ADDR", ":9101"))
+	go kafkautil.LagGauge(ctx, reader, consumerLag.Set)
 
 	go func() {
 		sig := make(chan os.Signal, 1)

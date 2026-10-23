@@ -24,6 +24,7 @@ func (h *IngestHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := ValidateRawIssue(issue); err != nil {
+		eventsTotal.WithLabelValues("rejected").Inc()
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -46,11 +47,13 @@ func (h *IngestHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.producer.Publish(r.Context(), h.topic, issue.SourceID, data); err != nil {
+		eventsTotal.WithLabelValues("publish_error").Inc()
 		log.Printf("publish to kafka: %v", err)
 		http.Error(w, "failed to queue event", http.StatusInternalServerError)
 		return
 	}
 
+	eventsTotal.WithLabelValues("accepted").Inc()
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusAccepted)
 	json.NewEncoder(w).Encode(map[string]string{

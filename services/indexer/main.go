@@ -6,7 +6,10 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
+	"github.com/jeronperey/issueiq/shared/kafkautil"
+	"github.com/jeronperey/issueiq/shared/metrics"
 	"github.com/segmentio/kafka-go"
 )
 
@@ -26,9 +29,12 @@ func main() {
 	log.Printf("  opensearch: %s  index=%s", osURL, osIndex)
 
 	reader := kafka.NewReader(kafka.ReaderConfig{
-		Brokers: []string{kafkaAddr},
-		Topic:   srcTopic,
-		GroupID: group,
+		Brokers:  []string{kafkaAddr},
+		Topic:    srcTopic,
+		GroupID:  group,
+		MinBytes: 1,
+		MaxBytes: 10 << 20,
+		MaxWait:  50 * time.Millisecond,
 	})
 	defer reader.Close()
 
@@ -40,6 +46,9 @@ func main() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	metrics.Serve(getenv("METRICS_ADDR", ":9201"))
+	go kafkautil.LagGauge(ctx, reader, consumerLag.Set)
 
 	go func() {
 		sig := make(chan os.Signal, 1)

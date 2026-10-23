@@ -71,6 +71,7 @@ func NormalizeIssue(raw schema.RawIssue) (schema.NormalizedIssue, error) {
 		Tags:          normalizeTags(getStringSlice(raw.RawPayload, "tags")),
 		CreatedAt:     createdAt,
 		UpdatedAt:     updatedAt,
+		IngestedAt:    raw.ReceivedAt,
 	}, nil
 }
 

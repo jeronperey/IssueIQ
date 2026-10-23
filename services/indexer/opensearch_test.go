@@ -127,3 +127,33 @@ func TestUpsertDocument_StatusCodes(t *testing.T) {
 		}
 	}
 }
+
+func TestBulkUpsert_ClassifiesItems(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/_bulk" {
+			t.Errorf("path = %s, want /_bulk", r.URL.Path)
+		}
+		w.Write([]byte(`{"errors":true,"items":[
+			{"index":{"status":201}},
+			{"index":{"status":429,"error":{"type":"es_rejected_execution_exception","reason":"queue full"}}},
+			{"index":{"status":400,"error":{"type":"mapper_parsing_exception","reason":"bad date"}}}]}`))
+	}))
+	defer srv.Close()
+
+	c := NewOpenSearchClient(srv.URL, "issues")
+	res, err := c.BulkUpsert(context.Background(), []schema.NormalizedIssue{{ID: "a"}, {ID: "b"}, {ID: "c"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res[0].ok() || !res[1].transient() || res[2].ok() || res[2].transient() {
+		t.Fatalf("unexpected classification: %+v", res)
+	}
+}
+
+func TestBulkUpsert_RequestFailureIsError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(503) }))
+	defer srv.Close()
+	if _, err := NewOpenSearchClient(srv.URL, "issues").BulkUpsert(context.Background(), []schema.NormalizedIssue{{ID: "a"}}); err == nil {
+		t.Fatal("want error on 503")
+	}
+}

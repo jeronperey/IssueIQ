@@ -25,6 +25,10 @@ type NormalizedIssue struct {
 	Tags          []string  `json:"tags"`
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
+	// IngestedAt is when the ingestion edge accepted the event (RawIssue.ReceivedAt);
+	// IndexedAt is stamped by the indexer. Their difference is the pipeline latency.
+	IngestedAt time.Time `json:"ingested_at,omitzero"`
+	IndexedAt  time.Time `json:"indexed_at,omitzero"`
 }
 
 // EventEnvelope wraps every Kafka message with routing metadata so consumers
@@ -40,6 +44,8 @@ type EventEnvelope struct {
 // DLQEnvelope wraps an unprocessable Kafka message for the dead-letter topic.
 // OriginalPayload is stored as raw JSON so it can be read without an extra decode step.
 type DLQEnvelope struct {
+	// SourceTopic is the topic the message was consumed from, so replay knows where to send it back.
+	SourceTopic     string          `json:"source_topic,omitempty"`
 	Reason          string          `json:"reason"`
 	OriginalPayload json.RawMessage `json:"original_payload"`
 	FailedAt        time.Time       `json:"failed_at"`

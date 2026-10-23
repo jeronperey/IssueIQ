@@ -7,11 +7,16 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/jeronperey/issueiq/shared/metrics"
 )
 
 func main() {
 	kafkaAddr := getenv("KAFKA_ADDR", "localhost:9092")
 	kafkaTopic := getenv("KAFKA_TOPIC", "raw-issues")
+
+	metrics.Serve(getenv("METRICS_ADDR", ":9100"))
+	httpAddr := getenv("HTTP_ADDR", ":8080")
 
 	producer := NewKafkaProducer(kafkaAddr)
 	defer producer.Close()
@@ -22,7 +27,7 @@ func main() {
 	mux.HandleFunc("GET /health", healthHandler)
 
 	srv := &http.Server{
-		Addr:    ":8080",
+		Addr:    httpAddr,
 		Handler: mux,
 	}
 
@@ -34,7 +39,7 @@ func main() {
 		srv.Shutdown(context.Background())
 	}()
 
-	log.Printf("ingestion service starting on :8080 (kafka=%s topic=%s)", kafkaAddr, kafkaTopic)
+	log.Printf("ingestion service starting on %s (kafka=%s topic=%s)", httpAddr, kafkaAddr, kafkaTopic)
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("server error: %v", err)
 	}

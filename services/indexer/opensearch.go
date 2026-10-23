@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/jeronperey/issueiq/shared/schema"
 )
@@ -45,6 +46,8 @@ var indexMapping = map[string]any{
 			"tags":           map[string]string{"type": "keyword"},
 			"created_at":     map[string]string{"type": "date"}, // For sorting and filtering, we want to use the date type. For display, we can format it as needed.
 			"updated_at":     map[string]string{"type": "date"},
+			"ingested_at":    map[string]string{"type": "date"},
+			"indexed_at":     map[string]string{"type": "date"},
 		},
 	},
 }
@@ -120,4 +123,81 @@ func (c *OpenSearchClient) UpsertDocument(ctx context.Context, issue schema.Norm
 		return fmt.Errorf("opensearch: upsert %s: unexpected status %d", issue.ID, resp.StatusCode)
 	}
 	return nil
+}
+
+// bulkItemResult is the outcome of one document in a _bulk request.
+type bulkItemResult struct {
+	Status int
+	Err    string
+}
+
+// transient reports whether the item failed for a reason that may clear on retry
+// (back-pressure or a server-side problem) as opposed to a document the index will
+// never accept (mapping conflict, bad request).
+func (r bulkItemResult) transient() bool { return r.Status == 429 || r.Status >= 500 }
+func (r bulkItemResult) ok() bool        { return r.Status == 200 || r.Status == 201 }
+
+// BulkUpsert indexes issues with one _bulk request, stamping IndexedAt on each.
+// A non-nil error means the whole request failed (connection error, 429/5xx on
+// the request itself) and nothing can be assumed about any item; callers retry it.
+// Otherwise the result slice is parallel to issues.
+func (c *OpenSearchClient) BulkUpsert(ctx context.Context, issues []schema.NormalizedIssue) ([]bulkItemResult, error) {
+	var buf bytes.Buffer
+	now := time.Now().UTC()
+	for _, issue := range issues {
+		issue.IndexedAt = now
+		meta, _ := json.Marshal(map[string]any{"index": map[string]string{"_index": c.index, "_id": issue.ID}})
+		doc, err := json.Marshal(issue)
+		if err != nil {
+			return nil, fmt.Errorf("opensearch: marshal %s: %w", issue.ID, err)
+		}
+		buf.Write(meta)
+		buf.WriteByte('\n')
+		buf.Write(doc)
+		buf.WriteByte('\n')
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.url+"/_bulk", &buf)
+	if err != nil {
+		return nil, fmt.Errorf("opensearch: build bulk request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/x-ndjson")
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("opensearch: bulk: %w", err)
+	}
+	defer resp.Body.Close()
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("opensearch: bulk read: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("opensearch: bulk: status %d: %.200s", resp.StatusCode, data)
+	}
+
+	var parsed struct {
+		Items []map[string]struct {
+			Status int `json:"status"`
+			Error  struct {
+				Type   string `json:"type"`
+				Reason string `json:"reason"`
+			} `json:"error"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		return nil, fmt.Errorf("opensearch: bulk decode: %w", err)
+	}
+	if len(parsed.Items) != len(issues) {
+		return nil, fmt.Errorf("opensearch: bulk returned %d items for %d docs", len(parsed.Items), len(issues))
+	}
+	results := make([]bulkItemResult, len(issues))
+	for i, item := range parsed.Items {
+		for _, v := range item { // single key: "index"
+			results[i] = bulkItemResult{Status: v.Status}
+			if v.Error.Type != "" {
+				results[i].Err = v.Error.Type + ": " + v.Error.Reason
+			}
+		}
+	}
+	return results, nil
 }
