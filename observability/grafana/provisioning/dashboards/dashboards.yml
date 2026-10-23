@@ -1,0 +1,6 @@
+apiVersion: 1
+providers:
+  - name: issueiq
+    folder: IssueIQ
+    type: file
+    options: {path: /var/lib/grafana/dashboards}

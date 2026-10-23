@@ -38,7 +38,7 @@ services:
     environment:
       - discovery.type=single-node
       - DISABLE_SECURITY_PLUGIN=true
-      - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
+      - OPENSEARCH_JAVA_OPTS=-Xms2g -Xmx2g
     ports:
       - "9200:9200"
     volumes:
@@ -95,6 +95,7 @@ services:
       context: .
       dockerfile: services/ingestion/Dockerfile
     container_name: issueiq-ingestion
+    restart: unless-stopped
     ports:
       - "8080:8080"
     environment:
@@ -111,6 +112,7 @@ services:
       context: .
       dockerfile: services/normalizer/Dockerfile
     container_name: issueiq-normalizer
+    restart: unless-stopped
     environment:
       - KAFKA_BROKERS=kafka:29092
       - RAW_ISSUES_TOPIC=raw-issues
@@ -128,6 +130,7 @@ services:
       context: .
       dockerfile: services/indexer/Dockerfile
     container_name: issueiq-indexer
+    restart: unless-stopped
     environment:
       - KAFKA_BROKERS=kafka:29092
       - NORMALIZED_ISSUES_TOPIC=normalized-issues
@@ -156,6 +159,34 @@ services:
     depends_on:
       opensearch:
         condition: service_healthy
+    networks:
+      - issueiq-net
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: issueiq-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - issueiq-net
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: issueiq-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
     networks:
       - issueiq-net
 

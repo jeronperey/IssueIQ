@@ -1,0 +1,30 @@
+name: ci
+on:
+  push: {branches: [main]}
+  pull_request:
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: {go-version-file: go.mod}
+      - run: go vet ./services/... ./shared/... ./tools/...
+      - run: go test -race ./services/... ./shared/...
+
+  integration:
+    # Real Kafka + OpenSearch: push 20k events through the pipeline and fail if any
+    # acknowledged event is missing or duplicated in the index, then one chaos run.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: {go-version-file: go.mod}
+      - run: docker compose up -d kafka opensearch kafka-init
+      - run: |
+          for i in $(seq 1 60); do curl -fs localhost:9200/_cluster/health && break; sleep 3; done
+      - run: scripts/bench/run.sh 2 2 2 -mode kafka -count 20000 -run-id ci1
+      - run: make chaos-quick
+      - if: failure()
+        run: docker compose logs --tail=200

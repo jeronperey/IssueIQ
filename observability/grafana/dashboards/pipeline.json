@@ -1,0 +1,270 @@
+{
+ "uid": "issueiq-pipeline",
+ "title": "IssueIQ pipeline",
+ "schemaVersion": 39,
+ "version": 1,
+ "refresh": "5s",
+ "time": {
+  "from": "now-15m",
+  "to": "now"
+ },
+ "panels": [
+  {
+   "id": 1,
+   "type": "timeseries",
+   "title": "Indexed docs/sec",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 0,
+    "w": 12,
+    "h": 8
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "ops"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum(rate(indexer_docs_total{result=\"indexed\"}[15s]))",
+     "legendFormat": "indexed"
+    }
+   ]
+  },
+  {
+   "id": 2,
+   "type": "timeseries",
+   "title": "Consumer lag (messages)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 0,
+    "w": 12,
+    "h": 8
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum(normalizer_consumer_lag)",
+     "legendFormat": "normalizer (raw-issues)"
+    },
+    {
+     "refId": "B",
+     "expr": "sum(indexer_consumer_lag)",
+     "legendFormat": "indexer (normalized-issues)"
+    }
+   ]
+  },
+  {
+   "id": 3,
+   "type": "timeseries",
+   "title": "Ingest \u2192 indexed latency",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 8,
+    "w": 12,
+    "h": 8
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "s"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "histogram_quantile(0.5,sum by (le)(rate(indexer_ingest_to_index_seconds_bucket[30s])))",
+     "legendFormat": "p50"
+    },
+    {
+     "refId": "B",
+     "expr": "histogram_quantile(0.99,sum by (le)(rate(indexer_ingest_to_index_seconds_bucket[30s])))",
+     "legendFormat": "p99"
+    }
+   ]
+  },
+  {
+   "id": 4,
+   "type": "timeseries",
+   "title": "OpenSearch _bulk latency",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 8,
+    "w": 12,
+    "h": 8
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "s"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "histogram_quantile(0.5,sum by (le)(rate(indexer_bulk_seconds_bucket[30s])))",
+     "legendFormat": "p50"
+    },
+    {
+     "refId": "B",
+     "expr": "histogram_quantile(0.99,sum by (le)(rate(indexer_bulk_seconds_bucket[30s])))",
+     "legendFormat": "p99"
+    }
+   ]
+  },
+  {
+   "id": 5,
+   "type": "timeseries",
+   "title": "Dead-lettered / retries per sec",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 16,
+    "w": 12,
+    "h": 8
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "ops"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum(rate(normalizer_messages_total{result=\"dlq\"}[15s]))",
+     "legendFormat": "normalizer DLQ"
+    },
+    {
+     "refId": "B",
+     "expr": "sum(rate(indexer_docs_total{result=\"dlq\"}[15s]))",
+     "legendFormat": "indexer DLQ"
+    },
+    {
+     "refId": "C",
+     "expr": "sum(rate(indexer_retries_total[15s]))",
+     "legendFormat": "indexer retries"
+    },
+    {
+     "refId": "D",
+     "expr": "sum(rate(normalizer_publish_retries_total[15s]))",
+     "legendFormat": "normalizer publish retries"
+    }
+   ]
+  },
+  {
+   "id": 6,
+   "type": "timeseries",
+   "title": "Ingestion HTTP outcomes",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 16,
+    "w": 12,
+    "h": 8
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "ops"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum by (result)(rate(ingestion_events_total[15s]))",
+     "legendFormat": "{{result}}"
+    }
+   ]
+  },
+  {
+   "id": 7,
+   "type": "timeseries",
+   "title": "Normalizer throughput per instance",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 24,
+    "w": 12,
+    "h": 8
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "ops"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum by (instance)(rate(normalizer_messages_total[15s]))",
+     "legendFormat": "{{instance}}"
+    }
+   ]
+  },
+  {
+   "id": 8,
+   "type": "timeseries",
+   "title": "Indexer throughput per instance",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 24,
+    "w": 12,
+    "h": 8
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "ops"
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum by (instance)(rate(indexer_docs_total{result=\"indexed\"}[15s]))",
+     "legendFormat": "{{instance}}"
+    }
+   ]
+  }
+ ],
+ "tags": [
+  "issueiq"
+ ]
+}

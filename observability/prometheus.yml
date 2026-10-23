@@ -1,0 +1,24 @@
+global:
+  scrape_interval: 5s
+
+scrape_configs:
+  # Services running in docker compose
+  - job_name: compose
+    static_configs:
+      - targets: ["ingestion:9100"]
+        labels: {service: ingestion}
+      - targets: ["normalizer:9101"]
+        labels: {service: normalizer}
+      - targets: ["indexer:9201"]
+        labels: {service: indexer}
+
+  # Services running as host processes (scripts/bench/run.sh, tools/chaos): ports
+  # 9100 ingestion, 9101-9108 normalizers, 9201-9208 indexers; 19xxx for chaos runs.
+  - job_name: host
+    static_configs:
+      - targets: ["host.docker.internal:9100", "host.docker.internal:19100"]
+        labels: {service: ingestion}
+      - targets: [host.docker.internal:9101, host.docker.internal:9102, host.docker.internal:9103, host.docker.internal:9104, host.docker.internal:9105, host.docker.internal:9106, host.docker.internal:9107, host.docker.internal:9108, host.docker.internal:19101, host.docker.internal:19102]
+        labels: {service: normalizer}
+      - targets: [host.docker.internal:9201, host.docker.internal:9202, host.docker.internal:9203, host.docker.internal:9204, host.docker.internal:9205, host.docker.internal:9206, host.docker.internal:9207, host.docker.internal:9208, host.docker.internal:19201, host.docker.internal:19202]
+        labels: {service: indexer}
