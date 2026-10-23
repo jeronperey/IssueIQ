@@ -4,6 +4,22 @@ IssueIQ is an event-driven issue-tracking pipeline built to learn the CrowdStrik
 
 ---
 
+## Performance and reliability (measured)
+
+On a single M4 laptop (everything co-located, see [docs/BENCHMARKS.md](docs/BENCHMARKS.md)):
+
+- **33k events/sec** sustained through Kafka -> normalizer -> Kafka -> indexer -> OpenSearch with 4 partitions / 4+4 consumers (12k on 1 partition; the original unbatched code did ~1/sec).
+- **p99 ingest-to-indexed 251 ms, p99 send-to-searchable 1.3 s** at 17.8k events/sec (the 1 s OpenSearch refresh interval dominates the latter).
+- **0 lost, 0 duplicate documents across 30 fault-injection runs (775k acknowledged events)**: SIGKILLs, Kafka and OpenSearch restarts, malformed input, DLQ replay.
+
+```bash
+make chaos           # fault-injection suite
+make bench-scaling   # throughput vs partitions/consumers
+# Grafana: http://localhost:3000   Prometheus: http://localhost:9090
+```
+
+---
+
 ## Architecture
 
 ```
