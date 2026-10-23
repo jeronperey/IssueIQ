@@ -1,4 +1,4 @@
-.PHONY: up down logs logs-ingestion logs-normalizer logs-indexer logs-query reset seed test replay-dlq
+.PHONY: build bench-scaling chaos chaos-quick up down logs logs-ingestion logs-normalizer logs-indexer logs-query reset seed test replay-dlq
 
 # Start all services in detached mode
 up:
@@ -38,6 +38,21 @@ seed:
 test:
 	go test ./services/... ./shared/...
 
-# Replay messages from the dead-letter queue
+# Replay dead-lettered messages back to the topic they failed on (see tools/replay)
 replay-dlq:
-	@echo "replay-dlq not yet implemented"
+	go run ./tools/replay $(ARGS)
+
+# Build service binaries into ./bin (used by the bench and chaos harnesses)
+build:
+	@mkdir -p bin && for s in ingestion normalizer indexer; do go build -o bin/$$s ./services/$$s; done
+
+# Saturation throughput vs partitions/consumers (needs: docker compose up -d kafka opensearch)
+bench-scaling:
+	scripts/bench/scaling.sh
+
+# Fault injection: kills, broker/OpenSearch restarts, malformed events, DLQ replay
+chaos: build
+	go run ./tools/chaos -runs 5
+
+chaos-quick: build
+	go run ./tools/chaos -runs 1 -events 10000
