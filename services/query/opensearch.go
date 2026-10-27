@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/jeronperey/issueiq/shared/schema"
 )
@@ -17,9 +18,11 @@ type OpenSearchClient struct {
 	index string
 }
 
-func NewOpenSearchClient(url, index string) *OpenSearchClient {
+// NewOpenSearchClient returns a client whose requests never outlive timeout, so a
+// stalled OpenSearch cannot pin request goroutines forever.
+func NewOpenSearchClient(url, index string, timeout time.Duration) *OpenSearchClient {
 	return &OpenSearchClient{
-		http:  &http.Client{},
+		http:  &http.Client{Timeout: timeout},
 		url:   url,
 		index: index,
 	}
@@ -29,13 +32,35 @@ func NewOpenSearchClient(url, index string) *OpenSearchClient {
 type searchHitsResponse struct {
 	Hits struct {
 		Total struct {
-			Value int `json:"value"`
+			Value    int    `json:"value"`
+			Relation string `json:"relation"`
 		} `json:"total"`
 		Hits []struct {
 			Source schema.NormalizedIssue `json:"_source"`
+			Sort   []any                  `json:"sort"`
 		} `json:"hits"`
 	} `json:"hits"`
 }
+
+// SearchParams describes one page of a search.
+type SearchParams struct {
+	Q       string
+	Filters map[string]string
+	Limit   int
+	After   []any // sort values of the last hit of the previous page (search_after)
+}
+
+// SearchResult is one page plus the sort values to resume after its last hit.
+type SearchResult struct {
+	Issues   []schema.NormalizedIssue
+	Total    int
+	Relation string // "eq", or "gte" when the count was capped at trackTotalHitsUpTo
+	Next     []any  // nil when this was the last page
+}
+
+// trackTotalHitsUpTo bounds the cost of counting matches. OpenSearch's default is the
+// same 10,000; making it explicit lets the API report whether the total is exact.
+const trackTotalHitsUpTo = 10000
 
 // aggBucket is a single bucket returned by a terms aggregation.
 type aggBucket struct {
@@ -110,29 +135,47 @@ func (c *OpenSearchClient) GetByID(ctx context.Context, id string) (*schema.Norm
 	return &dr.Source, nil
 }
 
-// Search runs a bool query against the issues index.
-// When q is non-empty, multi_match on title+description is placed in must.
-// When filters are provided, term queries are placed in filter.
-// When neither is set, a match_all is used.
-func (c *OpenSearchClient) Search(ctx context.Context, q string, filters map[string]string) ([]schema.NormalizedIssue, int, error) {
-	body, err := json.Marshal(map[string]any{
-		"size":  20,
-		"query": buildSearchQuery(q, filters),
-	})
+// Search runs a bool query against the issues index and returns one page.
+// When q is non-empty, multi_match on title+description is placed in must and hits are
+// ordered by relevance; otherwise newest first. Ties break on the keyword id so the
+// order is total, which is what makes search_after paging stable (no skips/repeats).
+// Unlike from+size, search_after costs the same on page 1 and page 10,000.
+func (c *OpenSearchClient) Search(ctx context.Context, p SearchParams) (*SearchResult, error) {
+	sort := []any{map[string]any{"created_at": "desc"}, map[string]any{"id": "asc"}}
+	if p.Q != "" {
+		sort = []any{map[string]any{"_score": "desc"}, map[string]any{"id": "asc"}}
+	}
+	req := map[string]any{
+		"size":             p.Limit,
+		"query":            buildSearchQuery(p.Q, p.Filters),
+		"sort":             sort,
+		"track_total_hits": trackTotalHitsUpTo,
+	}
+	if len(p.After) > 0 {
+		req["search_after"] = p.After
+	}
+	body, err := json.Marshal(req)
 	if err != nil {
-		return nil, 0, fmt.Errorf("opensearch: marshal search query: %w", err)
+		return nil, fmt.Errorf("opensearch: marshal search query: %w", err)
 	}
 
 	var sr searchHitsResponse
 	if err := c.post(ctx, body, &sr); err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 
-	issues := make([]schema.NormalizedIssue, 0, len(sr.Hits.Hits))
-	for _, hit := range sr.Hits.Hits {
-		issues = append(issues, hit.Source)
+	res := &SearchResult{
+		Issues:   make([]schema.NormalizedIssue, 0, len(sr.Hits.Hits)),
+		Total:    sr.Hits.Total.Value,
+		Relation: sr.Hits.Total.Relation,
 	}
-	return issues, sr.Hits.Total.Value, nil
+	for _, hit := range sr.Hits.Hits {
+		res.Issues = append(res.Issues, hit.Source)
+	}
+	if n := len(sr.Hits.Hits); n == p.Limit && n > 0 {
+		res.Next = sr.Hits.Hits[n-1].Sort
+	}
+	return res, nil
 }
 
 // Aggregate returns term-count buckets for status, priority, and source.
